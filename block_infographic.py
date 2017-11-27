@@ -8,7 +8,7 @@ import requests
 import copy
 from imdb_episodes import ImdbRatedEpisodeSet
 
-DEFAULT_URL = rating_list_urls['walkingdead']
+DEFAULT_URL = rating_list_urls['southpark']
 SQUARE_SIZE = 40
 MARGIN = int(SQUARE_SIZE / 2)
 SPACING = int(SQUARE_SIZE / 10)
@@ -16,7 +16,8 @@ RGB_MAX = 255.0
 
 class ImdbBlockInfographic(object):
 
-    def __init__(self, eps):
+    def __init__(self, eps, average=True):
+        self.average = average
         self.rated_list = eps.get_rate_sorted_list()
         self.cron_list = eps.get_cron_sorted_list()
         master = Tkinter.Tk()
@@ -27,31 +28,35 @@ class ImdbBlockInfographic(object):
                                      height=self.canvas_height)
         self.canvas.pack()
 
-    def get_number_of_seasons(self):
-        max_season = 0
-        for ep in self.cron_list:
-            sid = int(ep.season_id)
-            max_season = sid if sid > max_season else max_season
-        return max_season
+    def get_min_episode(self):
+        return min([int(x.episode_id) for x in self.cron_list])
 
     def get_max_episode(self):
-        max_episode = 0
-        for ep in self.cron_list:
-            eid = int(ep.episode_id)
-            max_episode = eid if eid > max_episode else max_episode
-        return max_episode
+        return max([int(x.episode_id) for x in self.cron_list])
+
+    def get_min_season_num(self):
+        return min([int(x.season_id) for x in self.cron_list])
+
+    def get_number_of_seasons(self):
+        return max([int(x.season_id) for x in self.cron_list])
 
     def get_height(self):
         max_episode = self.get_max_episode()
-        return (((SQUARE_SIZE + SPACING) * max_episode) + (2 * MARGIN))
+        min_episode = self.get_min_episode()
+        ep_range = max_episode - min_episode + 1
+        ep_range = ep_range + 1 if self.average else ep_range
+        return (((SQUARE_SIZE + SPACING) * ep_range) + (2 * MARGIN))
 
     def get_width(self):
         number_seasons = self.get_number_of_seasons()
         return (((SQUARE_SIZE + SPACING) * number_seasons) + (2 * MARGIN))
 
-    def draw_rectangle(self, x, y, color='red', text='10.0'):
+    def draw_rectangle(self, x, y, color='red', text='10.0', average=False):
         self.canvas.create_rectangle(x, y, x + SQUARE_SIZE, y + SQUARE_SIZE, fill=color)
-        self.canvas.create_text((x + SQUARE_SIZE / 2, y + SQUARE_SIZE / 2 ), text=text)
+        if average:
+            self.canvas.create_text((x + SQUARE_SIZE / 2, y + SQUARE_SIZE / 2 ), text='avg') 
+        else:
+            self.canvas.create_text((x + SQUARE_SIZE / 2, y + SQUARE_SIZE / 2 ), text=text)
 
     def get_red(self, rating):
         if rating <= 7.5:
@@ -76,15 +81,34 @@ class ImdbBlockInfographic(object):
         blue = self.get_blue(rating)
         return '#%02x%02x%02x' % (red, green, blue)
 
-    def plot_by_episode_num(self):
-        y = int(self.canvas_height/2)
-         
+    def get_season_average(self, season_num):
+        sum_rating = 0.0
+        num_eps = 0.0
         for ep in self.cron_list:
-            x = int(MARGIN + (SQUARE_SIZE + SPACING) * float(ep.season_id - 1))
-            y = int(MARGIN + (SQUARE_SIZE + SPACING) * float(ep.episode_id - 1))
+            if int(ep.season_id) == int(season_num):
+                sum_rating += ep.user_rating
+                num_eps += 1.0
+        return (sum_rating / num_eps)
+
+    def plot_by_episode_num(self):
+        min_ep_num = self.get_min_episode()
+        min_season_num = self.get_min_season_num()
+        y = int(self.canvas_height/2)
+        av_sq = 1 if self.average else 0
+            
+        for ep in self.cron_list:
+            x = int(MARGIN + (SQUARE_SIZE + SPACING) * float(ep.season_id - min_season_num))
+            y = int(MARGIN + (SQUARE_SIZE + SPACING) * float(av_sq + ep.episode_id - min_ep_num ))
             color = self.map_rating_to_color(float(ep.user_rating))
             text = ep.user_rating
             self.draw_rectangle(x, y, color, text)
+
+            if self.average:
+                y = int(MARGIN)
+                avg_rating = self.get_season_average(ep.season_id)
+                color = self.map_rating_to_color(float(avg_rating))
+                text = avg_rating
+                self.draw_rectangle(x, y, color, text, average=True)
 
         # draw
         Tkinter.mainloop()
