@@ -120,11 +120,17 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--link", default=DEFAULT_URL)
     parser.add_argument("--series")
+    parser.add_argument("--title")
     args = parser.parse_args()
-    link = get_full_link(args.series) if args.series else args.link
-    eps = ImdbRatedEpisodeSet(link)
-    plotter = ImdbBlockInfographic(eps)
-    plotter.plot_by_episode_num()
+    link = None
+    if args.title:
+        link = rating_list_urls.get(str(args.title), None)
+    else:
+        link = get_full_link(args.series) if args.series else args.link
+    if link:
+        eps = ImdbRatedEpisodeSet(link)
+        plotter = ImdbBlockInfographic(eps)
+        plotter.plot_by_episode_num()
 
 if __name__ == '__main__':
     main()
